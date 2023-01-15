@@ -4,7 +4,9 @@ from enum import Enum, IntEnum, IntFlag, auto
 from functools import partial, reduce
 from typing import Dict, List, Optional
 
-from tools import find_first, if_not_none, print_list
+from tools import find_first, if_not_none, is_not_none_and
+
+import struct
 
 
 ################################################## Public Enums ##################################################
@@ -37,11 +39,6 @@ class DaikinSwingMode(Enum):
 
 
 @dataclass
-class DaikinTimer:
-    duration: timedelta
-
-
-@dataclass
 class DaikinAcStateHolder:
     mode: DaikinAcMode
     temperature: int
@@ -49,8 +46,8 @@ class DaikinAcStateHolder:
     swing_mode: DaikinSwingMode
     no_wind: bool = False
     night_mode: bool = False
-    on_timer: Optional[DaikinTimer] = None
-    off_timer: Optional[DaikinTimer] = None
+    on_timer_hours: Optional[int] = None
+    off_timer_hours: Optional[int] = None
 
 
 class DaikinAcButtons(IntFlag):
@@ -75,10 +72,11 @@ class DaikinCommandOffset(IntEnum):
     Frame1Checksum = 19
     Mode = 25
     Temperature = 26
-    TemperatureMode = 27
+    TemperatureMode = 27  # Used for Auto and Dry modes for some reason
     FanSwingMode = 28
-    OnTimer = 30
-    OffTimer = 31
+    Timer1 = 30
+    Timer2 = 31
+    Timer3 = 32
     NightMode = 33
     NoWind = 36
     Frame2Checksum = 38
@@ -96,8 +94,10 @@ class HexValue:
 ################################################## Private static values ##################################################
 # Example: [11 DA 27 00 02 00 00 00 00 0C 00 00 00 00 00 00 00 00 00 20 | 11 DA 27 00 00 49 32 00 AF 00 00 06 60 00 00 C3 00 00 65]
 # All 0xFF are placeholders
+#                                                                          Button      OffM  Swing                                     Checksum
 _frame_1_template = [0x11, 0xDA, 0x27, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF]
-_frame_2_template = [0x11, 0xDA, 0x27, 0x00, 0x00, 0xFF, 0xFF, 00, 0xFF, 0x00, 0x00, 0x06, 0x60, 0xFF, 0x00, 0xC3, 0xFF, 0x00, 0xFF]
+#                                                  Mode  Temp  TempM F/S         Timers (3 byte)   Night             NoWind      Checksum
+_frame_2_template = [0x11, 0xDA, 0x27, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xC3, 0xFF, 0x00, 0xFF]
 
 _button_partial = partial(HexValue, offset=DaikinCommandOffset.Button.value)
 _fan_swing_mode_partial = partial(HexValue, offset=DaikinCommandOffset.FanSwingMode.value)
@@ -162,32 +162,92 @@ def _daikin_swing_mode_to_hex() -> Dict[DaikinSwingMode, List[HexValue]]:
 
 
 ################################################## Private converters ##################################################
-def _get_ac_mode_commands(mode: DaikinAcMode, previous_mode: Optional[DaikinAcMode] = None) -> List[HexValue]:
-    # TODO: timers
-    if mode is not DaikinAcMode.Off:
-        return _daikin_ac_mode_to_hex()[mode]
-    else:
+def _get_ac_mode_commands(
+    mode: DaikinAcMode, on_timer: Optional[int] = None, off_timer: Optional[int] = None, previous_mode: Optional[DaikinAcMode] = None
+) -> List[HexValue]:
+    on_timer_mask = 0x0B
+    off_timer_mask = 0x0D
+    on_off_timer_mask = 0x0F
+
+    if mode is DaikinAcMode.Off:
         if previous_mode is not None and previous_mode is not DaikinAcMode.Off:
-            previous_hex = _daikin_ac_mode_to_hex()[previous_mode]
-            return previous_hex - 1
+            # previous_hex = _daikin_ac_mode_to_hex()[previous_mode]
+            # return previous_hex - 1
+            raise Exception("Not ready yet")
         else:
             commands = _daikin_ac_mode_to_hex()[mode]
             commands.append(_default_off_command)
             return commands
+    else:
+        commands  = _daikin_ac_mode_to_hex()[mode]
+
+        predicate = lambda x: 0 < x <= 12
+        on_timer_enabled = is_not_none_and(on_timer, predicate)
+        off_timer_enabled = is_not_none_and(off_timer, predicate)
+        if on_timer_enabled or off_timer_enabled:
+
+            if on_timer_enabled and off_timer_enabled:
+                mask = on_off_timer_mask
+            elif on_timer_enabled:
+                mask = on_timer_mask
+            elif off_timer_enabled:
+                mask = off_timer_mask
+
+            new_mode = commands[0].value ^ mask
+            commands[0].value = new_mode
+
+    return commands
+
+def _get_timers_commands(on_duration: int, off_duration: int) -> List[HexValue]:
+    on_multiplier = 60  # Minutes
+    off_multiplier = 960  # 60 Minutes * 16 ???
+
+    values = [0x00, 0x06, 0x60]  # Default values for "both timers are 0"
+    if 0 < on_duration <= 12:
+        on_encoded = struct.pack("<H", on_duration * on_multiplier)
+        values[0] = on_encoded[0]
+        values[1] = on_encoded[1]
+    if 0 < off_duration <= 12:
+        off_encoded = struct.pack("<H", off_duration * off_multiplier)
+        values[2] = off_encoded[1]
+        values[1] = values[1] ^ off_encoded[0]
+
+    offsets = [DaikinCommandOffset.Timer1, DaikinCommandOffset.Timer2, DaikinCommandOffset.Timer3]
+    commands = []
+    for (value, offset) in zip(values, offsets):
+        commands.append(HexValue(value, offset.value))
+
+    return commands
 
 
 def _get_temperature_commands(mode: DaikinAcMode, temperature: int) -> List[HexValue]:
+    temperature_partial = partial(HexValue, offset=DaikinCommandOffset.Temperature.value)
+    temperature_mode_zero = HexValue(0x00, DaikinCommandOffset.TemperatureMode.value)
+    temperature_mode_dry_auto = HexValue(0x80, DaikinCommandOffset.TemperatureMode.value)
+
+    commands = []
     if mode in [DaikinAcMode.Heat, DaikinAcMode.Cool]:
         if 18 <= temperature <= 30:
-            commands = []
-            commands.append(HexValue(temperature * 2, DaikinCommandOffset.Temperature.value))
-            commands.append(HexValue(0x00, DaikinCommandOffset.TemperatureMode.value))
-
-            return commands
+            commands.append(temperature_partial(temperature * 2))
+            commands.append(temperature_mode_zero)
         else:
-            raise Exception(f"Temperature {temperature} is out of bounds! Allowed values are between 18 and 30 degrees.")
-    else:
-        raise Exception("not implemented")
+            raise Exception(f"Temperature {temperature} out of bounds for mode {mode.name}! Allowed values are +18..+30C")
+    elif mode is DaikinAcMode.Fan:
+        commands.append(temperature_partial(0x32))  # Static value of 50 (25C)
+        commands.append(temperature_mode_zero)
+    elif mode is DaikinAcMode.Dry:
+        commands.append(temperature_partial(0xC0))  # Static value
+        commands.append(temperature_mode_dry_auto)
+    elif mode is DaikinAcMode.Auto:
+        if -5 <= temperature <= +5:
+            offset = 0xC0 if temperature >= 0 else 0xE0
+            value = offset + (temperature * 2)
+
+            commands.append(HexValue(value, DaikinAcMode))
+            commands.append(temperature_mode_dry_auto)
+        else:
+            raise Exception(f"Temperature {temperature} out of bounds for Auto mode! Allowed values are -5..+5C")
+    return commands
 
 
 def _get_fan_swing_commands(fan_mode: DaikinFanMode, swing_mode: DaikinSwingMode, no_wind: bool = False) -> List[HexValue]:
@@ -243,6 +303,7 @@ def _state_to_command(state: DaikinAcStateHolder, previous_state: Optional[Daiki
     state_commands.extend(_get_ac_mode_commands(state.mode, if_not_none(previous_state, lambda x: x.mode)))
     state_commands.extend(_get_temperature_commands(state.mode, state.temperature))
     state_commands.extend(_get_fan_swing_commands(state.fan_mode, state.swing_mode, state.no_wind))
+    state_commands.extend(_get_timers_commands(state.on_timer_hours or 0, state.off_timer_hours or 0))
     state_commands.extend(_get_night_mode(state.night_mode))
 
     for command in state_commands:

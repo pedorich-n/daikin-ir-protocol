@@ -1,0 +1,13 @@
+{
+    "manufacturer": "Daikin",
+    "supportedModels": [],
+    "commandsEncoding":"Base64",
+    "supportedController":"Broadlink",
+    "minTemperature": 20,
+    "maxTemperature": 30,
+    "precision": 1,
+    "operationModes": ["cool", "heat"],
+    "fanModes": ["auto", "quiet", "high", "midHigh", "mid", "midLow", "low"],
+    "swingModes": ["auto", "high", "midHigh", "mid", "midLow", "low"],
+    "commands": {}
+}
