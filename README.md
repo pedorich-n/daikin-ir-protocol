@@ -8,9 +8,9 @@ I wanted to control AC using Home-Assistant, and existing solutions provided ver
 ## Results & Code
 Raw results from AnalysIR can be found in [decoding](decoding/) folder. 
 
-Interpreted results can be found [here](src/daikin_ac_state.py).
+Interpreted protol can be found [here](src/daikin_ac_state.py).
 
-There's also JSON generator for [SmartIR](https://github.com/smartHomeHub/SmartIR) integration for Home-Assistant [here](src/smartir/smartir_generator.py).
+There's also JSON generator for [SmartIR](https://github.com/smartHomeHub/SmartIR) integration for Home-Assistant [here](src/smartir/smartir_generator.py) (Broadlink controller). With the help of [ir_tools.py](src/smartir/ir_tools.py) it's possible to write generators for other controllers.
 
 
 ## Acknowledgement

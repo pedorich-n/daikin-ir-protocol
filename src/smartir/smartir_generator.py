@@ -4,10 +4,9 @@ from typing import List
 
 import irgen
 
-from src.bit_tools import lsb_command_to_msb, reverse_bits, stringify_command
-from src.daikin_ac_state import (DaikinAcMode, DaikinAcState, DaikinFanMode,
-                                 DaikinSwingMode)
-from src.ir_tools import encode_command
+from src.daikin_ac_state import DaikinAcMode, DaikinAcState, DaikinFanMode, DaikinSwingMode
+from src.smartir.bit_tools import lsb_command_to_msb, stringify_command
+from src.smartir.ir_tools import encode_command
 
 ac_modes_to_string = {
     DaikinAcMode.Cool: "cool",
@@ -37,7 +36,6 @@ swing_modes_to_string = {
     DaikinSwingMode.Low: "low",
 }
 swing_modes_from_string = {v: k for k, v in swing_modes_to_string.items()}
-
 
 
 def generate_broadlink_command(state: DaikinAcState) -> str:
@@ -97,16 +95,21 @@ def run(base: dict) -> dict:
                             no_wind=False,
                             night_mode=False,
                         )
-                        prefix = f"Writing {ac_mode_str}, {fan_mode_str}, {swing_mode_str}, {temp}C code:".ljust(48, " ")
+                        prefix = f"Writing {ac_mode_str}, {fan_mode_str}, {swing_mode_str}, {temp}C code:".ljust(
+                            48, " "
+                        )
                         command_str = stringify_command(state.get_command(), True)
                         print(f"{prefix}{command_str}")
 
                         command = generate_broadlink_command(state)
                         result["commands"][ac_mode_str][fan_mode_str][swing_mode_str][temp] = command
                     else:
-                        print(f"Code for {ac_mode_str}, {fan_mode_str}, {swing_mode_str}, {temp}C already exists, skipping...")
+                        print(
+                            f"Code for {ac_mode_str}, {fan_mode_str}, {swing_mode_str}, {temp}C already exists, skipping..."
+                        )
 
     return result
+
 
 def main():
     # TODO: do not hardcode paths
@@ -121,5 +124,5 @@ def main():
             result_file.write(json_object)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
