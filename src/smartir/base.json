@@ -1,6 +1,6 @@
 {
     "manufacturer": "Daikin",
-    "supportedModels": [],
+    "supportedModels": ["ARC478A65"],
     "commandsEncoding":"Base64",
     "supportedController":"Broadlink",
     "minTemperature": 20,

@@ -1,6 +1,5 @@
 import struct
 from dataclasses import dataclass
-from datetime import timedelta
 from enum import Enum, IntEnum, IntFlag, auto
 from functools import partial, reduce
 from typing import Dict, List, Optional
