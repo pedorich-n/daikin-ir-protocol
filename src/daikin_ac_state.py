@@ -1,12 +1,11 @@
+import struct
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import Enum, IntEnum, IntFlag, auto
 from functools import partial, reduce
 from typing import Dict, List, Optional
 
-from tools import find_first, if_not_none, is_not_none_and
-
-import struct
+from src.tools import find_first, if_not_none, is_not_none_and
 
 
 ################################################## Public Enums ##################################################
@@ -63,7 +62,7 @@ class DaikinAcButtons(IntFlag):
     ModeFan = 0x1A
 
 
-# Offset starting from 0
+# Enum represents information position in the array starting from 0
 class DaikinCommandOffset(IntEnum):
     Button = 9
     OffMarker = 11  # Not sure what this value is for, but only time it's different from 0x00 is when Off button is pressed
@@ -123,7 +122,6 @@ def _daikin_ac_mode_to_hex() -> Dict[DaikinAcMode, List[HexValue]]:
 
 
 def _daikin_fan_mode_to_hex() -> Dict[DaikinFanMode, List[HexValue]]:
-    # button_fan = _button_partial(DaikinAcButtons.Fan.value)
     values = {
         DaikinFanMode.Auto: [_fan_swing_mode_partial(0xA0)],
         DaikinFanMode.Quiet: [_fan_swing_mode_partial(0xB0)],
@@ -134,16 +132,11 @@ def _daikin_fan_mode_to_hex() -> Dict[DaikinFanMode, List[HexValue]]:
         DaikinFanMode.High: [_fan_swing_mode_partial(0x70)],
     }
 
-    # for mode, command in values.items():
-    #     command.append(button_fan)
-    #     values[mode] = command
-
     return values
 
 
 def _daikin_swing_mode_to_hex() -> Dict[DaikinSwingMode, List[HexValue]]:
     swing_mode_partial = partial(HexValue, offset=DaikinCommandOffset.SwingMode.value)
-    # button_swing = _button_partial(DaikinAcButtons.Swing.value)
     fan_swing_non_auto = _fan_swing_mode_partial(0x00)
     values = {
         DaikinSwingMode.Auto: [swing_mode_partial(0x00), _fan_swing_mode_partial(0x0F)],
@@ -153,10 +146,6 @@ def _daikin_swing_mode_to_hex() -> Dict[DaikinSwingMode, List[HexValue]]:
         DaikinSwingMode.MidHigh: [swing_mode_partial(0x20), fan_swing_non_auto],
         DaikinSwingMode.High: [swing_mode_partial(0x10), fan_swing_non_auto],
     }
-
-    # for mode, command in values.items():
-    #     command.append(button_swing)
-    #     values[mode] = command
 
     return values
 
