@@ -22,7 +22,7 @@ fan_modes_to_string = {
     DaikinFanMode.High: "high",
     DaikinFanMode.MidHigh: "midHigh",
     DaikinFanMode.Mid: "mid",
-    DaikinFanMode.LowMid: "midLow",
+    DaikinFanMode.LowMid: "lowMid",
     DaikinFanMode.Low: "low",
 }
 fan_modes_from_string = {v: k for k, v in fan_modes_to_string.items()}
@@ -32,7 +32,7 @@ swing_modes_to_string = {
     DaikinSwingMode.High: "high",
     DaikinSwingMode.MidHigh: "midHigh",
     DaikinSwingMode.Mid: "mid",
-    DaikinSwingMode.LowMid: "midLow",
+    DaikinSwingMode.LowMid: "lowMid",
     DaikinSwingMode.Low: "low",
 }
 swing_modes_from_string = {v: k for k, v in swing_modes_to_string.items()}

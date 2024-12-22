@@ -231,7 +231,7 @@ def _get_temperature_commands(mode: DaikinAcMode, temperature: int) -> List[HexV
             offset = 0xC0 if temperature >= 0 else 0xE0
             value = offset + (temperature * 2)
 
-            commands.append(HexValue(value, DaikinAcMode))
+            commands.append(HexValue(value, DaikinCommandOffset.Temperature))
             commands.append(temperature_mode_dry_auto)
         else:
             raise Exception(f"Temperature {temperature} out of bounds for Auto mode! Allowed values are -5..+5C")
